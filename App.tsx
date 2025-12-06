@@ -5,6 +5,7 @@ import MetricCard from './components/MetricCard';
 import CustomRadarChart from './components/RadarChart';
 import AttackChain from './components/AttackChain';
 import CodeViewer from './components/CodeViewer';
+import CodeEditor from './components/CodeEditor';
 import RemediationPanel from './components/RemediationPanel';
 
 const App: React.FC = () => {
@@ -135,20 +136,17 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative z-10">
         
         {/* LEFT PANEL: SOURCE / CODE */}
-        <div className="w-full lg:w-[30%] border-r border-gray-800 bg-[#05070B]/50 flex flex-col min-h-[300px] lg:h-full relative">
+        <div className="w-full lg:w-[35%] border-r border-gray-800 bg-[#05070B]/50 flex flex-col min-h-[300px] lg:h-full relative">
           <div className="p-3 border-b border-gray-800 bg-black/40 flex justify-between items-center shrink-0">
             <span className="font-orbitron text-xs text-[#FF003C] tracking-widest font-bold">SOURCE INPUT // VULNERABLE CODE</span>
           </div>
           
-          <div className="flex-1 relative bg-black/30">
+          <div className="flex-1 relative bg-black/30 p-0 overflow-hidden">
             {!result ? (
-               <textarea
-                value={inputCode}
-                onChange={(e) => setInputCode(e.target.value)}
-                placeholder="// PASTE TARGET CODE HERE..."
-                className="w-full h-full bg-transparent text-gray-300 p-4 text-xs font-mono resize-none focus:outline-none focus:bg-[#FF003C]/5 transition-colors custom-scrollbar leading-relaxed"
-                spellCheck="false"
-              />
+               <CodeEditor 
+                 value={inputCode}
+                 onChange={setInputCode}
+               />
             ) : (
               <CodeViewer code={inputCode} />
             )}
@@ -239,7 +237,7 @@ const App: React.FC = () => {
               </div>
 
               {/* RIGHT PANEL: INTELLIGENCE DASHBOARD */}
-              <div className="w-full lg:w-[40%] bg-[#05070B]/80 flex flex-col overflow-y-auto custom-scrollbar border-l border-gray-800">
+              <div className="w-full lg:w-[45%] bg-[#05070B]/80 flex flex-col overflow-y-auto custom-scrollbar border-l border-gray-800">
                 <div className="p-3 border-b border-gray-800 bg-black/40">
                   <span className="font-orbitron text-xs text-white tracking-widest">INTELLIGENCE DASHBOARD</span>
                 </div>
@@ -247,7 +245,7 @@ const App: React.FC = () => {
                 <div className="p-4 space-y-4">
                   
                   {/* Radar Chart Section - Enlarged */}
-                  <div className="relative min-h-[400px] bg-black/40 p-1 flex flex-col mb-2">
+                  <div className="relative h-[350px] bg-black/40 p-1 flex flex-col mb-2 border border-gray-800">
                     <div className="absolute top-3 left-3 z-10 flex items-center gap-2 pointer-events-none">
                        <div className="w-2 h-2 bg-[#FF003C] animate-pulse rounded-full shadow-[0_0_10px_#FF003C]"></div>
                        <span className="font-orbitron text-[10px] text-gray-300 font-bold tracking-[0.2em]">ACTIVE THREAT VECTOR</span>
