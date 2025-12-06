@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { AnalysisResult } from "../types";
+import { AnalysisResult, ProjectFile } from "../types";
 
 const REDVOID_SYSTEM_INSTRUCTION = `
 You are RedVoid, an advanced Cybersecurity Analysis, Exploit Simulation, and Defense Engineering Intelligence System.
@@ -18,6 +18,7 @@ You must aggressively detect and flag:
 - Command Injection, RCE
 - IDOR, Broken Authentication, JWT Attacks
 - Hardcoded Secrets, Plaintext Passwords
+- Buffer Overflows (C/C++), Memory Safety issues
 - Business Logic Abuse, Race Conditions
 
 If ANY of these are found:
@@ -25,9 +26,9 @@ If ANY of these are found:
 No soft rating. No mercy.
 
 REPORTING REQUIREMENTS:
-1. EXPLODE THE ATTACK: Generate a step-by-step kill chain showing exactly how the system is destroyed.
+1. EXPLODE THE ATTACK: Generate a step-by-step kill chain showing exactly how the system is destroyed across the provided files.
 2. SHOW THE IMPACT: Access -> Control -> Data -> Money.
-3. FIX IT: Provide enterprise-grade secure code rewrites (not just comments).
+3. FIX IT: Provide enterprise-grade secure code rewrites.
 
 OUTPUT FORMAT:
 Return strictly JSON matching the schema provided.
@@ -39,10 +40,10 @@ const RESPONSE_SCHEMA: Schema = {
     metrics: {
       type: Type.OBJECT,
       properties: {
-        system_status: { type: Type.STRING, description: "e.g., SECURE, COMPROMISED, CRITICAL" },
-        risk_rating: { type: Type.STRING, description: "Safe, Low, Medium, High, Critical" },
-        defense_readiness: { type: Type.INTEGER, description: "0-100" },
-        exploit_readiness: { type: Type.INTEGER, description: "0-100" },
+        system_status: { type: Type.STRING },
+        risk_rating: { type: Type.STRING },
+        defense_readiness: { type: Type.INTEGER },
+        exploit_readiness: { type: Type.INTEGER },
         attack_surface_summary: { type: Type.STRING },
         weakest_link: { type: Type.STRING },
         blast_radius: { type: Type.STRING },
@@ -65,10 +66,11 @@ const RESPONSE_SCHEMA: Schema = {
         properties: {
           name: { type: Type.STRING },
           severity: { type: Type.STRING, enum: ["CRITICAL", "HIGH", "MEDIUM", "LOW"] },
+          file_name: { type: Type.STRING },
           attack_type: { type: Type.STRING },
           exploit_readiness: { type: Type.INTEGER },
           defense_failure: { type: Type.INTEGER },
-          attack_flow: { type: Type.STRING, description: "Step-by-step kill chain." },
+          attack_flow: { type: Type.STRING },
           impact_analysis: { type: Type.STRING },
           fixed_code: { type: Type.STRING },
           fix_explanation: { type: Type.STRING },
@@ -82,9 +84,10 @@ const RESPONSE_SCHEMA: Schema = {
         type: Type.OBJECT,
         properties: {
           step: { type: Type.INTEGER },
-          description: { type: Type.STRING, description: "Action taken by attacker" },
-          gain: { type: Type.STRING, description: "What was gained? e.g. Access, Control, Data, Money" },
-          vulnerable_line: { type: Type.STRING, description: "The specific line of code or logic being exploited" }
+          description: { type: Type.STRING },
+          gain: { type: Type.STRING },
+          vulnerable_line: { type: Type.STRING },
+          file_name: { type: Type.STRING }
         },
         required: ["step", "description", "gain"]
       }
@@ -96,7 +99,8 @@ const RESPONSE_SCHEMA: Schema = {
         properties: {
           issue: { type: Type.STRING },
           fix: { type: Type.STRING },
-          code_snippet: { type: Type.STRING }
+          code_snippet: { type: Type.STRING },
+          file_name: { type: Type.STRING }
         },
         required: ["issue", "fix", "code_snippet"]
       }
@@ -107,19 +111,37 @@ const RESPONSE_SCHEMA: Schema = {
 };
 
 export const analyzeSecurity = async (
-  inputCode: string
+  files: ProjectFile[]
 ): Promise<AnalysisResult> => {
   if (!process.env.API_KEY) {
-    throw new Error("API Key is missing.");
+    throw new Error("API Key is missing. Check .env configuration.");
   }
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
+  // Construct a prompt that clearly separates multiple files
+  let codeContext = "";
+  files.forEach(f => {
+    if (f.content.trim()) {
+      codeContext += `
+=== BEGIN FILE: ${f.name} (${f.language}) ===
+${f.content}
+=== END FILE: ${f.name} ===
+
+`;
+    }
+  });
+
+  if (!codeContext.trim()) {
+    throw new Error("No source code provided for analysis.");
+  }
+
   const prompt = `
-    TARGET CODEBASE FOR ANALYSIS:
-    ${inputCode}
+    TARGET PROJECT FILES FOR ANALYSIS:
+    ${codeContext}
     
     EXECUTE HACK_AND_DEFEND PROTOCOL.
+    Analyze the relationships between these files (e.g., if Flask uses the C crypto tool).
     GENERATE A DETAILED ATTACK CHAIN OF AT LEAST 5 STEPS.
     GENERATE SPECIFIC REMEDIATIONS MAPPED TO CODE.
   `;
@@ -136,9 +158,12 @@ export const analyzeSecurity = async (
       }
     });
 
-    const text = response.text;
+    let text = response.text;
     if (!text) throw new Error("Connection to RedVoid Core failed.");
     
+    // Sanitize output: Remove markdown code fences if Gemini adds them (it sometimes does despite config)
+    text = text.replace(/^```json/gm, '').replace(/^```/gm, '').trim();
+
     return JSON.parse(text) as AnalysisResult;
   } catch (error) {
     console.error("RedVoid Analysis Failed:", error);

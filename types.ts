@@ -1,6 +1,13 @@
+export interface ProjectFile {
+  name: string;
+  language: string;
+  content: string;
+}
+
 export interface Vulnerability {
   name: string;
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  file_name?: string; // Added to track which file is vulnerable
   attack_type: string;
   exploit_readiness: number;
   defense_failure: number;
@@ -13,14 +20,16 @@ export interface Vulnerability {
 export interface AttackStep {
   step: number;
   description: string;
-  gain: string; // e.g., "Access", "Control", "Data", "Money"
+  gain: string; 
   vulnerable_line?: string;
+  file_name?: string; // Added context
 }
 
 export interface Remediation {
   issue: string;
   fix: string;
   code_snippet: string;
+  file_name?: string; // Added context
 }
 
 export interface SecurityMetrics {

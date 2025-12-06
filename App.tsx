@@ -1,21 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { analyzeSecurity } from './services/gemini';
-import { AnalysisResult } from './types';
+import { AnalysisResult, ProjectFile } from './types';
 import MetricCard from './components/MetricCard';
 import CustomRadarChart from './components/RadarChart';
 import AttackChain from './components/AttackChain';
 import CodeViewer from './components/CodeViewer';
 import CodeEditor from './components/CodeEditor';
 import RemediationPanel from './components/RemediationPanel';
+import FileTabs from './components/FileTabs';
+
+const INITIAL_FILES: ProjectFile[] = [
+  { name: 'app.py', language: 'python', content: '' },
+  { name: 'server.js', language: 'javascript', content: '' },
+  { name: 'secure_hash.c', language: 'c', content: '' }
+];
 
 const App: React.FC = () => {
-  const [inputCode, setInputCode] = useState<string>('');
+  const [files, setFiles] = useState<ProjectFile[]>(INITIAL_FILES);
+  const [activeFileIndex, setActiveFileIndex] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'ATTACK' | 'DEFENSE'>('ATTACK');
   const logsEndRef = useRef<HTMLDivElement>(null);
+
+  const activeFile = files[activeFileIndex];
 
   const addLog = (msg: string, type: 'info' | 'warn' | 'crit' = 'info') => {
     const now = new Date();
@@ -30,12 +40,29 @@ const App: React.FC = () => {
 
   useEffect(() => {
     addLog('REDVOID KERNEL LOADED', 'info');
-    addLog('WAITING FOR TARGET SOURCE...', 'info');
+    addLog('INITIALIZING MULTI-LANGUAGE ENVIRONMENT...', 'info');
   }, []);
 
+  const handleCodeChange = (newCode: string) => {
+    const newFiles = [...files];
+    newFiles[activeFileIndex].content = newCode;
+    setFiles(newFiles);
+  };
+
+  const handleAddFile = () => {
+    const name = prompt("Enter file name (e.g., database.sql):");
+    if (name) {
+      setFiles([...files, { name, language: 'plaintext', content: '' }]);
+      setActiveFileIndex(files.length); // Switch to new file
+      addLog(`MOUNTED NEW VIRTUAL DRIVE: ${name}`, 'info');
+    }
+  };
+
   const handleAnalyze = async () => {
-    if (!inputCode.trim()) {
-      addLog('INPUT STREAM EMPTY', 'warn');
+    // Check if any file has content
+    const hasContent = files.some(f => f.content.trim().length > 0);
+    if (!hasContent) {
+      addLog('ALL INPUT STREAMS EMPTY. ABORTING.', 'warn');
       return;
     }
 
@@ -45,16 +72,16 @@ const App: React.FC = () => {
     setLogs([]);
     setViewMode('ATTACK');
     
-    addLog('INITIATING FORENSIC SCAN', 'crit');
-    addLog('MAPPING VULNERABILITY MATRIX...', 'info');
+    addLog('INITIATING FULL SYSTEM SCAN', 'crit');
+    addLog(`TARGETS: ${files.map(f => f.name).join(', ')}`, 'info');
 
     // Simulated scan logs
     const steps = [
-      'ANALYZING SYNTAX TREE',
+      'PARSING MULTI-FILE SYNTAX TREES',
+      'TRACING CROSS-LANGUAGE CALLS',
       'DETECTING INJECTION VECTORS',
       'SIMULATING PRIVILEGE ESCALATION',
-      'CALCULATING BLAST RADIUS',
-      'GENERATING ATTACK CHAIN'
+      'CALCULATING BLAST RADIUS'
     ];
 
     let stepIndex = 0;
@@ -65,13 +92,13 @@ const App: React.FC = () => {
       } else {
         clearInterval(interval);
       }
-    }, 700);
+    }, 800);
 
     try {
-      const data = await analyzeSecurity(inputCode);
+      const data = await analyzeSecurity(files);
       clearInterval(interval);
       setResult(data);
-      addLog('SCAN COMPLETE. SYSTEM COMPROMISED.', 'crit');
+      addLog('SCAN COMPLETE. VULNERABILITY MATRIX GENERATED.', 'crit');
     } catch (err: any) {
       clearInterval(interval);
       setError(err.message || 'SYSTEM FAILURE');
@@ -136,19 +163,44 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative z-10">
         
         {/* LEFT PANEL: SOURCE / CODE */}
-        <div className="w-full lg:w-[35%] border-r border-gray-800 bg-[#05070B]/50 flex flex-col min-h-[300px] lg:h-full relative">
-          <div className="p-3 border-b border-gray-800 bg-black/40 flex justify-between items-center shrink-0">
-            <span className="font-orbitron text-xs text-[#FF003C] tracking-widest font-bold">SOURCE INPUT // VULNERABLE CODE</span>
+        <div className="w-full lg:w-[40%] border-r border-gray-800 bg-[#05070B]/50 flex flex-col min-h-[400px] lg:h-full relative">
+          <div className="border-b border-gray-800 bg-black/40 shrink-0">
+             <FileTabs 
+               files={files} 
+               activeFileIndex={activeFileIndex}
+               onSelectFile={setActiveFileIndex}
+               onAddFile={handleAddFile}
+               disabled={loading}
+             />
           </div>
           
           <div className="flex-1 relative bg-black/30 p-0 overflow-hidden">
+             {/* We only switch between Editor and Viewer if analysis is done, 
+                 but even if analysis is done, we might want to edit again. 
+                 Let's keep it editable but show analysis results on the right. 
+                 Or show Viewer if loading/result present? 
+                 Actually, best UX for a tool like this is always editable or a toggle. 
+                 Let's keep it editable but use CodeViewer for result visualization if user wants read-only.
+                 For now, keeping the toggle logic simple.
+             */}
             {!result ? (
                <CodeEditor 
-                 value={inputCode}
-                 onChange={setInputCode}
+                 value={activeFile.content}
+                 onChange={handleCodeChange}
+                 disabled={loading}
                />
             ) : (
-              <CodeViewer code={inputCode} />
+               <div className="relative h-full flex flex-col">
+                  <div className="absolute top-2 right-2 z-20">
+                    <button 
+                      onClick={() => setResult(null)} 
+                      className="bg-black/80 border border-gray-700 text-[10px] text-gray-400 px-2 py-1 hover:text-white"
+                    >
+                      EDIT SOURCE
+                    </button>
+                  </div>
+                  <CodeViewer code={activeFile.content} />
+               </div>
             )}
           </div>
 
@@ -164,7 +216,7 @@ const App: React.FC = () => {
                 }
               `}
             >
-              {loading ? 'RUNNING FORENSICS...' : 'RE-SCAN TARGET'}
+              {loading ? 'RUNNING FORENSICS...' : 'SCAN SYSTEM'}
             </button>
           </div>
         </div>
@@ -177,8 +229,8 @@ const App: React.FC = () => {
                 <div className="w-24 h-24 border border-gray-700 rounded-full flex items-center justify-center mb-6 animate-pulse">
                    <div className="w-20 h-20 border border-gray-800 rounded-full border-dashed animate-spin-slow"></div>
                 </div>
-                <h2 className="font-orbitron text-2xl tracking-[0.3em] text-gray-500">AWAITING TARGET DATA</h2>
-                <p className="font-mono text-xs text-gray-600 mt-2">SECURE CONNECTION ESTABLISHED</p>
+                <h2 className="font-orbitron text-2xl tracking-[0.3em] text-gray-500">AWAITING SYSTEM DATA</h2>
+                <p className="font-mono text-xs text-gray-600 mt-2">PASTE CODE INTO FILES TO BEGIN ANALYSIS</p>
              </div>
           )}
 
@@ -281,7 +333,10 @@ const App: React.FC = () => {
                     <ul className="space-y-2">
                        {result.vulnerabilities.map((v, i) => (
                          <li key={i} className="text-[11px] text-gray-400 font-mono border-l-2 border-[#FF003C] pl-2 hover:bg-[#FF003C]/10 cursor-default transition-colors py-1">
-                            <div className="font-bold text-gray-300">{v.name}</div>
+                            <div className="flex justify-between">
+                              <span className="font-bold text-gray-300">{v.name}</span>
+                              {v.file_name && <span className="text-gray-600">[{v.file_name}]</span>}
+                            </div>
                             <div className="text-[9px] text-[#FF003C]">{v.attack_type}</div>
                          </li>
                        ))}
